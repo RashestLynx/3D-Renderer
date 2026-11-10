@@ -14,9 +14,15 @@ screenshots. One `.exe`, nothing to install.
 
 <sub>Toy Car by Guido Odendahl and Eric Chadwick, CC0 — see [CREDITS.md](CREDITS.md).</sub>
 
-## Get it
+## Download
 
-Build `modelview.exe` once with `build.bat` (below), then:
+### [⬇ Download modelview.exe](https://github.com/RashestLynx/3D-Renderer/raw/main/release/modelview.exe) (Windows, 33 MB)
+
+No install: double-click it. Windows SmartScreen may warn about an unsigned app the first time — choose
+*More info → Run anyway*.
+
+## Get started
+
 
 - double-click `modelview.exe` and **drag a model onto the window**, or press **O** to browse, or
 - drag a `.glb` **onto `modelview.exe`** itself, or right-click a `.glb` → *Open with* → `modelview.exe`.
@@ -98,6 +104,8 @@ render(model, Camera(yaw=30, pitch=10), size=(800, 1000)).save('out.png')
 ```
 
 ## Build from source
+
+To build the exe yourself instead of downloading it:
 
 ```bat
 pip install -r requirements.txt pyinstaller
