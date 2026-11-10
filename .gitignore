@@ -1,0 +1,7 @@
+dist/
+build/
+*.spec
+__pycache__/
+*.pyc
+.pytest_cache/
+*_view_*.png

@@ -1,0 +1,4 @@
+numpy>=1.22
+Pillow>=9.0
+moderngl>=5.8
+pyglet>=2.0
