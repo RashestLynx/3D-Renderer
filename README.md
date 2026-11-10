@@ -1,54 +1,69 @@
 # modelview
 
-A fast, simple 3D model viewer and renderer for Windows. Open a `.glb` / `.gltf` model, spin it around in real
-time, compare texture sets, and save screenshots — one `.exe`, nothing to install.
+A fast, simple 3D model viewer for Windows. Open a `.glb` / `.gltf` model and spin it around in real time with
+physically based materials, studio reflections, soft shadows and a glossy showroom floor. Compare texture sets, save
+screenshots. One `.exe`, nothing to install.
 
 ![The real-time viewer](docs/viewer.png)
 
+![Car Concept in modelview](docs/car_concept.png)
+
+<sub>Car Concept © 2024 Darmstadt Graphics Group GmbH, model by Eric Chadwick, CC BY 4.0 — see [CREDITS.md](CREDITS.md).</sub>
+
+![Toy Car in modelview](docs/toy_car.png)
+
+<sub>Toy Car by Guido Odendahl and Eric Chadwick, CC0 — see [CREDITS.md](CREDITS.md).</sub>
+
 ## Get it
 
-**Run the exe:** build it once with `build.bat` (below) and use `dist\modelview.exe`. Then:
+Build `modelview.exe` once with `build.bat` (below), then:
 
 - double-click `modelview.exe` and **drag a model onto the window**, or press **O** to browse, or
-- drag a `.glb` file **onto `modelview.exe`** itself, or right-click a `.glb` → *Open with* → `modelview.exe`.
+- drag a `.glb` **onto `modelview.exe`** itself, or right-click a `.glb` → *Open with* → `modelview.exe`.
 
-Try it with the included `examples/demo.glb`.
+Try `examples/khronos/CarConcept.glb`, `examples/khronos/ToyCar.glb` or `examples/demo.glb`.
 
 ## Controls
 
 | Mouse | |
 |---|---|
-| Left-drag | Orbit around the model |
+| Left-drag | Orbit (flick it and it keeps turning for a moment) |
 | Right-drag / middle-drag / Shift+left-drag | Pan |
 | Wheel | Zoom |
 | Double-click | Re-frame the model |
 
 | Key | | Key | |
 |---|---|---|---|
-| **O** | Open a model | **W** | Wireframe |
-| **F** | Frame the model | **T** | Textures on/off |
-| **1 2 3 4** | Front / right / back / left | **N** | Normal maps on/off |
-| **Space** | Turntable spin | **G** | Flip normal-map green (DirectX ↔ OpenGL maps) |
-| **S** | Screenshot → `Pictures\modelview` | **L** | Lighting on/off |
-| **B** | Change background | **H** / **F1** | Hide / show help |
-| **Esc** | Quit | | |
+| **O** | Open a model | **E** | Lighting environment (studio / overcast / night / white) |
+| **F** | Frame the model | **B** | Background (environment / dark / grey / black / white) |
+| **1 2 3 4** | Front / right / back / left | **+ / −** | Exposure |
+| **Space** | Turntable spin | **P** | Shadows on/off |
+| **S** | Screenshot → `Pictures\modelview` | **R** | Reflective floor on/off |
+| **H** / **F1** | Hide / show help | **W** | Wireframe |
+| **Esc** | Quit | **T** / **N** / **L** | Textures / normal maps / lighting on/off |
+| | | **G** | Flip normal-map green (DirectX ↔ OpenGL maps) |
+
+Camera moves glide instead of jumping, and the window redraws at your monitor's refresh rate (about 150 fps for the
+213k-triangle Car Concept with every effect on, on an RTX 3060 laptop).
 
 Drop a **texture map** (`.json`, below) on the window to re-texture the open model.
 
 ## What it renders
 
-- glTF 2.0 binary (`.glb`) and text (`.gltf` with external or embedded buffers and images)
-- Skinned characters in their bind pose
-- Base colour textures + factors, tangent-space **normal maps**, alpha cut-outs (hair, leaves, fences), two-sided faces
-- Three-point lighting with a sky/ground ambient, mip-mapped anisotropic textures, 4× MSAA
-- PNG / JPEG / TIFF / TGA / DDS-via-Pillow textures
+- glTF 2.0 binary (`.glb`) and text (`.gltf`, external or embedded buffers and images), skinned models in bind pose
+- Metallic-roughness PBR: base colour, normal, metallic/roughness, emissive and occlusion maps, `KHR_texture_transform`
+- Car paint and glass: `KHR_materials_clearcoat` (a smooth lacquer over flaked paint), `KHR_materials_transmission`,
+  `KHR_materials_emissive_strength`; alpha cut-outs (hair, leaves) and blended parts sorted back to front
+- A procedural car-photo studio for reflections (overhead softbox, long strip lights), ACES tone mapping
+- Shadow-mapped key light, a soft contact shadow under the model, and a glossy floor with a fading reflection
+- 4× MSAA, mip-mapped anisotropic textures, and filtering that keeps fine bump detail from sparkling
 
 If the PC has no OpenGL 3.3, the exe falls back to a slower software-rendered window.
 
 ## Texture maps
 
-A texture map swaps or supplies textures per material, without touching the model file — handy for models whose
-images live in another folder, or for comparing an original texture set with an upscaled one:
+A texture map swaps or supplies textures per material without touching the model — for models whose images live in
+another folder, or to compare an original texture set with an upscaled one:
 
 ```json
 {
@@ -92,3 +107,8 @@ python -m pytest tests          :: tests (pip install pytest)
 ```
 
 Requires Python 3.9+, numpy, Pillow, moderngl and pyglet.
+
+## Credits
+
+The example cars are by Eric Chadwick, Guido Odendahl and the Khronos Group (Car Concept under CC BY 4.0, Toy Car
+under CC0). Full credits and licences: [CREDITS.md](CREDITS.md).

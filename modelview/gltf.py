@@ -21,6 +21,17 @@ class Material:
     alpha_cutoff: float = 0.5
     double_sided: bool = True
     normal_texture: object = None   # (H, W, 4) float32 tangent-space normal map, or None
+    metallic: float = 0.0
+    roughness: float = 0.7
+    mr_texture: object = None       # glTF metallicRoughness: G = roughness, B = metallic
+    emissive: tuple = (0.0, 0.0, 0.0)
+    emissive_texture: object = None
+    occlusion_texture: object = None   # R = ambient occlusion
+    clearcoat: float = 0.0          # KHR_materials_clearcoat (car paint)
+    clearcoat_roughness: float = 0.05
+    transmission: float = 0.0       # KHR_materials_transmission (glass): drawn see-through
+    uv_sets: dict = field(default_factory=dict)   # texture slot -> TEXCOORD index (0 or 1)
+    uv_transforms: dict = field(default_factory=dict)   # texture slot -> 3x3 KHR_texture_transform matrix
 
 
 @dataclass
@@ -30,6 +41,7 @@ class Part:
     uvs: np.ndarray                 # (N, 2)
     triangles: np.ndarray           # (M, 3) int
     material: Material
+    uvs2: np.ndarray = None         # TEXCOORD_1 (often the ambient-occlusion set), or None
 
 
 @dataclass
@@ -175,8 +187,35 @@ def load(path, texture_overrides=None):
         elif isinstance(ov, dict):
             tex = file_tex(ov['color']) if ov.get('color') else tex
             ntex = file_tex(ov['normal']) if ov.get('normal') else ntex
-        mats.append(Material(name, tuple(pbr.get('baseColorFactor', (1, 1, 1, 1))), tex, m.get('alphaMode', 'OPAQUE'),
-                             m.get('alphaCutoff', 0.5), m.get('doubleSided', True), ntex))
+        ext = m.get('extensions', {})
+        cc = ext.get('KHR_materials_clearcoat', {})
+        tr = ext.get('KHR_materials_transmission', {})
+        has_mr = 'metallicFactor' in pbr or 'metallicRoughnessTexture' in pbr
+        mat = Material(name, tuple(pbr.get('baseColorFactor', (1, 1, 1, 1))), tex, m.get('alphaMode', 'OPAQUE'),
+                       m.get('alphaCutoff', 0.5), m.get('doubleSided', True), ntex,
+                       # glTF's default metallic is 1, but exporters that write no PBR data at all (game rips, old
+                       # tools) mean a plain non-metal surface
+                       metallic=float(pbr.get('metallicFactor', 1.0 if has_mr else 0.0)),
+                       roughness=float(pbr.get('roughnessFactor', 1.0 if has_mr else 0.7)),
+                       mr_texture=gltf_tex(pbr.get('metallicRoughnessTexture')),
+                       emissive=tuple(m.get('emissiveFactor', (0, 0, 0))),
+                       emissive_texture=gltf_tex(m.get('emissiveTexture')),
+                       occlusion_texture=gltf_tex(m.get('occlusionTexture')),
+                       clearcoat=float(cc.get('clearcoatFactor', 0.0)),
+                       clearcoat_roughness=float(cc.get('clearcoatRoughnessFactor', 0.05)),
+                       transmission=float(tr.get('transmissionFactor', 0.0)))
+        strength = ext.get('KHR_materials_emissive_strength', {}).get('emissiveStrength', 1.0)
+        mat.emissive = tuple(float(e) * strength for e in mat.emissive)
+        for slot, info in (('color', pbr.get('baseColorTexture')), ('normal', m.get('normalTexture')),
+                           ('mr', pbr.get('metallicRoughnessTexture')), ('emissive', m.get('emissiveTexture')),
+                           ('occlusion', m.get('occlusionTexture'))):
+            if info:
+                mat.uv_sets[slot] = info.get('texCoord', 0)
+                tt = info.get('extensions', {}).get('KHR_texture_transform')
+                if tt:
+                    mat.uv_transforms[slot] = uv_transform(tt)
+                    mat.uv_sets[slot] = tt.get('texCoord', mat.uv_sets[slot])
+        mats.append(mat)
     world = g.world_matrices()
     skin_mats = None
     if g.j.get('skins'):
@@ -197,6 +236,7 @@ def load(path, texture_overrides=None):
             pos = g.accessor(at['POSITION']).astype(np.float64)
             nrm = g.accessor(at['NORMAL']).astype(np.float64) if 'NORMAL' in at else None
             uv = g.accessor(at['TEXCOORD_0']).astype(np.float64) if 'TEXCOORD_0' in at else np.zeros((len(pos), 2))
+            uv2 = g.accessor(at['TEXCOORD_1']).astype(np.float64) if 'TEXCOORD_1' in at else None
             idx = g.accessor(prim['indices']).ravel().astype(np.int64) if 'indices' in prim else np.arange(len(pos))
             tris = idx[:len(idx) // 3 * 3].reshape(-1, 3)
             if skin_mats is not None and 'JOINTS_0' in at and 'skin' in nd:
@@ -213,8 +253,20 @@ def load(path, texture_overrides=None):
             mat = mats[prim['material']] if prim.get('material') is not None else Material('default')
             if mat.name in overrides and not overrides[mat.name]:
                 continue                                 # "" / null in the texture map hides the material
-            model.parts.append(Part(pos, nrm, uv, tris, mat))
+            model.parts.append(Part(pos, nrm, uv, tris, mat, uv2))
     return model
+
+
+def uv_transform(tt):
+    """KHR_texture_transform -> 3x3 matrix applied to (u, v, 1): translation * rotation * scale."""
+    ox, oy = tt.get('offset', (0, 0))
+    r = tt.get('rotation', 0.0)
+    sx, sy = tt.get('scale', (1, 1))
+    c, s = np.cos(r), np.sin(r)
+    T = np.array([[1, 0, ox], [0, 1, oy], [0, 0, 1]], np.float64)
+    R = np.array([[c, s, 0], [-s, c, 0], [0, 0, 1]], np.float64)
+    S = np.array([[sx, 0, 0], [0, sy, 0], [0, 0, 1]], np.float64)
+    return T @ R @ S
 
 
 def _skin(pos, nrm, joints, weights, mats):
